@@ -1,6 +1,66 @@
 Dogan-Amsterdam based
 
 # 📦 ecommerce-platform-kotlin
+```
+# 📦 ecommerce-platform-kotlin
+
+```mermaid
+flowchart TD
+  %% User placing order
+  U[User] --> OrderService[Order Service]
+  OrderService --> PC[PaymentController]
+  PC --> POS[PaymentOrderService]
+  POS --> DB[(PostgreSQL\nPayment + OutboxEvent)]
+
+  %% Outbox → Kafka
+  DB --> OD[Outbox Dispatcher\n(@Scheduled)]
+  OD --> KP[Kafka Producer]
+  KP --> Kafka1[Kafka\ntopic: payment_order_created_queue\nEventEnvelope<PaymentOrderCreated>]
+
+  %% Kafka consumer logic
+  Kafka1 --> POE[PaymentOrderExecutor\n(Kafka Consumer)]
+  POE --> PSP[PSP Client]
+  POE --> KafkaSuccess[Kafka\ntopic: payment_order_success\nEventEnvelope<PaymentOrderSucceeded>]
+
+  %% Retry and Status Check
+  POE --> RedisRetry[Redis Retry ZSet\ntransient failures]
+  POE --> RedisSchedule[Redis Scheduled ZSet\npending status]
+
+  RedisRetry -->|poll due retry| POE
+  RedisSchedule --> Dispatcher[DueStatusCheckDispatcher\n(@Scheduled)]
+  Dispatcher --> DB
+  Dispatcher --> KafkaDue[Kafka\ntopic: due_payment_status_check_topic\nEventEnvelope<DuePaymentOrderStatusCheck>]
+
+  KafkaDue --> StatusExecutor[ScheduledStatusCheckExecutor\n(Kafka Consumer)]
+  StatusExecutor --> PSP
+
+  %% Observability
+  subgraph Observability
+    Filebeat[Filebeat/Logstash]
+    ES[Elasticsearch]
+    Kibana[Kibana Dashboard]
+  end
+
+  PC --> Filebeat
+  POS --> Filebeat
+  POE --> Filebeat
+  Dispatcher --> Filebeat
+  StatusExecutor --> Filebeat
+  Filebeat --> ES --> Kibana
+
+  %% Styling
+  classDef db fill=#fff2b2,stroke=#b2a700
+  classDef kafka fill=#f2e0ff,stroke=#a600ff
+  classDef redis fill=#ddffdd,stroke=#008000
+  classDef scheduled fill=#ffe0a0,stroke=#cc8800
+  classDef observability fill=#eeeeee,stroke=#444444
+  class DB db
+  class Kafka1,KafkaSuccess,KafkaDue kafka
+  class RedisRetry,RedisSchedule redis
+  class OD,Dispatcher scheduled
+  class Filebeat,ES,Kibana observability
+```
+
 
 This repository is a work-in-progress **ecommerce platform prototype**, designed with a modular, domain-driven, event-oriented architecture using **Spring Boot + Kotlin**.
 
