@@ -1,237 +1,146 @@
-Dogan-Amsterdam based
+# 🛒 ecommerce-platform-kotlin
 
-# 📦 ecommerce-platform-kotlin
-```
-# 📦 ecommerce-platform-kotlin
+A **modular**, **event-driven**, and **resilient** eCommerce backend prototype built with **Kotlin** and **Spring Boot**, demonstrating how to design a high-throughput system (like Amazon or bol.com) using **Domain-Driven Design (DDD)** and **Hexagonal Architecture**.
 
-```mermaid
-flowchart TD
-  %% User placing order
-  U[User] --> OrderService[Order Service]
-  OrderService --> PC[PaymentController]
-  PC --> POS[PaymentOrderService]
-  POS --> DB[(PostgreSQL\nPayment + OutboxEvent)]
-
-  %% Outbox → Kafka
-  DB --> OD[Outbox Dispatcher\n(@Scheduled)]
-  OD --> KP[Kafka Producer]
-  KP --> Kafka1[Kafka\ntopic: payment_order_created_queue\nEventEnvelope<PaymentOrderCreated>]
-
-  %% Kafka consumer logic
-  Kafka1 --> POE[PaymentOrderExecutor\n(Kafka Consumer)]
-  POE --> PSP[PSP Client]
-  POE --> KafkaSuccess[Kafka\ntopic: payment_order_success\nEventEnvelope<PaymentOrderSucceeded>]
-
-  %% Retry and Status Check
-  POE --> RedisRetry[Redis Retry ZSet\ntransient failures]
-  POE --> RedisSchedule[Redis Scheduled ZSet\npending status]
-
-  RedisRetry -->|poll due retry| POE
-  RedisSchedule --> Dispatcher[DueStatusCheckDispatcher\n(@Scheduled)]
-  Dispatcher --> DB
-  Dispatcher --> KafkaDue[Kafka\ntopic: due_payment_status_check_topic\nEventEnvelope<DuePaymentOrderStatusCheck>]
-
-  KafkaDue --> StatusExecutor[ScheduledStatusCheckExecutor\n(Kafka Consumer)]
-  StatusExecutor --> PSP
-
-  %% Observability
-  subgraph Observability
-    Filebeat[Filebeat/Logstash]
-    ES[Elasticsearch]
-    Kibana[Kibana Dashboard]
-  end
-
-  PC --> Filebeat
-  POS --> Filebeat
-  POE --> Filebeat
-  Dispatcher --> Filebeat
-  StatusExecutor --> Filebeat
-  Filebeat --> ES --> Kibana
-
-  %% Styling
-  classDef db fill=#fff2b2,stroke=#b2a700
-  classDef kafka fill=#f2e0ff,stroke=#a600ff
-  classDef redis fill=#ddffdd,stroke=#008000
-  classDef scheduled fill=#ffe0a0,stroke=#cc8800
-  classDef observability fill=#eeeeee,stroke=#444444
-  class DB db
-  class Kafka1,KafkaSuccess,KafkaDue kafka
-  class RedisRetry,RedisSchedule redis
-  class OD,Dispatcher scheduled
-  class Filebeat,ES,Kibana observability
-```
-
-
-This repository is a work-in-progress **ecommerce platform prototype**, designed with a modular, domain-driven, event-oriented architecture using **Spring Boot + Kotlin**.
-
-> 🔍 **Goal**: Demonstrate architectural design choices and trade-offs for high-throughput systems like Amazon or bol.com. The focus is currently on the **payment-service**.
-
-
-
-                           ┌────────────────────────────┐
-                           │     PaymentController       │
-                           │  (Receives REST request)    │
-                           └────────────┬───────────────┘
-                                        │
-                                        ▼
-                           ┌────────────────────────────┐
-                           │   PaymentOrderService       │
-                           │  - Create PaymentOrder      │
-                           │  - Persist to DB            │
-                           │  - Save OutboxEvent<T>      │
-                           └────────────┬───────────────┘
-                                        │
-                 ┌─────────────────────▼─────────────────────┐
-                 │           Database                         │
-                 │  - payment_order                           │
-                 │  - outbox_event<EventEnvelope<T>>          │
-                 └─────────────────────┬─────────────────────┘
-                                       │
-                    (OutboxDispatcherScheduler @Scheduled)
-                                       │
-                                       ▼
-                  ┌────────────────────────────────────────┐
-                  │ Kafka Publisher (from OutboxEvent<T>)  │
-                  │ Topic: `payment_order_created_queue`   │
-                  │ Payload: EventEnvelope<PaymentOrderCreated> │
-                  └────────────────────────────────────────┘
-                                       │
-                                       ▼
-            ┌────────────────────────────────────────────────────────────┐
-            │ PaymentOrderExecutor (Kafka Consumer)                      │
-            │  - Deserializes envelope<EventEnvelope<PaymentOrderCreated>>│
-            │  - Calls PSP (mock/real)                                   │
-            │  - Delegates to domain: PaymentOrder                       │
-            │  - Based on result:                                        │
-            │      - Retry? → use RetryQueuePort<PaymentOrderRetryRequested>│
-            │      - Pending? → use RetryQueuePort<PaymentOrderStatusScheduled>│
-            │      - Success? → publish success                          │
-            └────────────────────────────────────────────────────────────┘
-                  │                                   │
-                  ▼                                   ▼
-   ┌────────────────────────────┐       ┌────────────────────────────────────────────┐
-   │ Redis ZSet: Short Retry    │       │ Redis ZSet: Long-Term PSP Status Scheduling│
-   │ Key: payment:retry         │       │ Key: payment:status:schedule               │
-   │ Purpose: retry transient   │       │ Purpose: decouple DB I/O, delay scheduling │
-   └────────────┬───────────────┘       └──────────────┬──────────────────────────────┘
-                │                                       │
-    pollDueRetries() (short-term)              DueStatusCheckRequestDispatcherJob
-                                                  (runs every N seconds):
-                                                  - poll ZSet (score <= now)
-                                                  - persist due to DB
-                                                  - publish EventEnvelope<DuePaymentOrderStatusCheck>
-                                                        │
-                                                        ▼
-                          Kafka Topic: `due_payment_status_check_topic`
-                                                        │
-                                                        ▼
-           ┌────────────────────────────────────────────────────────────┐
-           │ ScheduledPaymentStatusCheckExecutor (Kafka Consumer)       │
-           │  - Consumes envelope<EventEnvelope<DuePaymentOrderStatusCheck>> │
-           │  - Calls PSP again                                         │
-           │  - Updates order status                                    │
-           │  - Publishes success/failure event                         │
-           └────────────────────────────────────────────────────────────┘
-
-
-──────────────────────────────────────────────────────────────────────────────
-📊 Observability & Logging: Filebeat + ELK
-──────────────────────────────────────────────────────────────────────────────
-┌────────────────────────────────────────────────────────────┐
-│ MDC Context (eventId, traceId, aggregateId)                │
-│ Structured logs using logstash-logback-encoder             │
-└────────────────────────────┬───────────────────────────────┘
-                             ▼
-                   ┌────────────────────────┐
-                   │      Filebeat          │
-                   └────────────┬───────────┘
-                                ▼
-                   ┌────────────────────────┐
-                   │     Elasticsearch      │
-                   └────────────┬───────────┘
-                                ▼
-                   ┌────────────────────────┐
-                   │        Kibana          │
-                   │   - Trace logs         │
-                   │   - Visualize flow     │
-                   └────────────────────────┘
+> 🚧 Currently focused on the `payment-service` module. Other modules (like order, wallet, and shipment) are planned for future development.
 
 ---
 
-## ✅ Highlights
+## 📌 Overview
 
-- **Modular architecture** with decoupled domains (starting with `payment-service`)
-- Designed using **Domain-Driven Design (DDD)** and **Hexagonal Architecture**
-- Implements **event-driven communication** using **Kafka**
-- Production-level patterns for:
-  - Fault tolerance (retry, backoff, DLQ)
-  - Observability (MDC, traceId, structured logging)
-  - Testability and decoupling
 
----
 
-## 💳 Payment Service
 
-The payment service handles the core payment flow for an ecommerce platform with many sellers:
+This project simulates a real-world multi-seller eCommerce platform where:
 
-- Supports **multi-seller split payments** per order
-- Integrates with a mock **PSP (Payment Service Provider)**
-- Kafka events model the full flow: order creation → payment processing → status updates
-- Uses **Redis** and **PostgreSQL** for retry queues and delayed processing
-
-### 🔁 Retry & Scheduling
-
-- **Short-term retries** for transient PSP failures are managed via **Redis ZSet**.
-- **Long-term PSP status checks** are persisted to DB and dispatched periodically by a scheduled job.
+- A single order may contain products from multiple sellers.
+- Each seller must be paid independently.
+- Payment flow must handle failures, retries, and PSP timeouts robustly.
+- All communication is decoupled using Kafka events.
+- Observability and fault tolerance are built-in from day one.
 
 ---
 
-### 🔬 Production Simulation & Fault Injection
+## 🔍 Why This Project Exists
 
-To test the resilience of this system, I’ve implemented a **mock PSP (Payment Service Provider)** that simulates real-world failure scenarios:
-
-- 🐌 **Slow responses**
-- 💥 **Timeouts**
-- ❌ **Hard PSP failures**
-- 🔁 **Retryable errors**
-- ❓ **Ambiguous “pending” states**
-
-This allows me to **analyze system behavior under pressure**, **identify bottlenecks**, and **fine-tune retry, scheduling, and observability strategies**.
+- Showcase scalable architecture choices in high-volume systems.
+- Demonstrate mastery of **DDD**, **modularity**, **event choreography**, and **resilience patterns**.
+- Enable others to contribute and learn by building well-structured components.
 
 ---
 
-### 📈 Observability & Resilience
+## ✅ Current Focus: `payment-service`
 
-- All events are wrapped in a custom `EventEnvelope` structure with trace IDs and parent-child causality for full traceability.
-- Logs are structured in **JSON** and shipped via **Filebeat → Elasticsearch → Kibana**.
-- Kafka-based flows are **fully decoupled**, with backoff, retries, and dead-letter logic modeled around real-world patterns.
+Handles the full lifecycle of payment processing for multi-seller orders:
 
----
+### 🌐 Responsibilities
 
-## 🛠️ Tech Stack
-
-- Kotlin + Spring Boot 3.x
-- Kafka (event backbone)
-- PostgreSQL (JPA)
-- Redis (retry queues)
-- Keycloak (OAuth2 authentication)
-- ELK stack (logging and observability)
-- Maven multi-module layout
+- Generate and persist `Payment` and multiple `PaymentOrder`s (one per seller).
+- Create outbox events for Kafka: `payment_order_created`.
+- Consume `payment_order_created` events and process via a mock PSP.
+- Retry failed payments with backoff (via Redis).
+- Schedule delayed status checks.
+- Emit follow-up events: `payment_order_succeeded`, `retry_requested`, `status_check_scheduled`, etc.
+- Gracefully recover Redis ID state on startup.
 
 ---
 
-## 🧩 Modules (WIP)
+## 🧱 Architecture Principles
 
-- `payment-service` ✅
-- `order-service` (planned)
-- `wallet-service` (planned)
-- `shipment-service` (planned)
+### ✅ Domain-Driven Design (DDD)
+- Clear separation of `domain`, `application`, `adapter`, and `config` layers.
+- Domain logic is isolated and testable, with all IO abstracted via ports.
+
+### ✅ Hexagonal Architecture
+- Adapters implement ports and isolate external dependencies (e.g., database, Redis, Kafka).
+- Prevents domain leakage and encourages modular evolution.
+
+### ✅ Event-Driven Communication
+- Kafka events drive all workflows.
+- Events are wrapped in a custom `EventEnvelope` with traceability built-in (`traceId`, `parentEventId`).
+
+### ✅ Observability
+- Structured JSON logs via `logstash-logback-encoder`.
+- `MDC` context propagation.
+- Metrics with Prometheus (Micrometer).
+- Events include traceability metadata for end-to-end correlation.
+
+### ✅ Resilience Patterns
+- Redis ZSet for short-term retry queue (transient PSP failures).
+- PostgreSQL + scheduler for long-term status checks.
+- Retry, backoff, DLQ support.
+- Simulated PSP supports slow responses, timeouts, hard failures, pending states.
 
 ---
 
-## 📌 Running Locally
+## 🔩 Tech Stack
 
-This project uses Docker Compose for infra (Postgres, Redis, Kafka, Keycloak, Elasticsearch, Kibana):
+| Component | Technology |
+|----------|------------|
+| Language | Kotlin (JDK 21) |
+| Framework | Spring Boot 3.x |
+| Messaging | Kafka |
+| DB | PostgreSQL + JPA |
+| Caching/Retry | Redis |
+| Auth | Keycloak (OAuth2) |
+| Logging | Logback + JSON + MDC |
+| Observability | Prometheus + Micrometer |
+| Infra Simulation | Testcontainers (Redis, Kafka) |
 
-```bash
-docker-compose up -d
+---
+
+## 📦 Modules (Maven Multi-Module Layout)
+
+| Module | Status | Description |
+|--------|--------|-------------|
+| `payment-service` | ✅ Active | Multi-seller payment orchestration |
+| `common` | ✅ Active | Shared contracts, envelope, logging |
+| `order-service` | 🕒 Planned | Will emit order created events |
+| `wallet-service` | 🕒 Planned | Tracks balances per seller |
+| `shipment-service` | 🕒 Planned | Handles delivery coordination |
+
+---
+
+## 🚧 Roadmap
+
+> See [`docs/user-stories.md`](./docs/user-stories.md) for a breakdown of backlog stories and priorities.
+
+Key items:
+- ⏱ Improve retry observability
+- 🧪 Write integration tests for `PaymentOrderExecutor`
+- 🧾 Add Elasticsearch read model for querying payment status
+- 🛡 Harden failure flows & DLQ
+- 🔐 Enforce OAuth2 in all endpoints
+- 🔁 Wire up status check job for PSP polling
+- 📤 Build wallet & shipment dummy services to simulate downstream effects
+
+---
+
+## 🧪 Testing Strategy
+
+- Unit tests at domain & mapper level.
+- Integration tests with real Redis & Kafka via Testcontainers.
+- Outbox dispatching & retry scheduler are testable via event assertions.
+
+---
+
+## ✍️ Contributing
+
+This repo is currently in active design and implementation.
+
+If you want to contribute:
+1. Read the `docs/architecture.md` (coming soon)
+2. Check open issues or user stories
+3. Fork + PR + include test coverage
+
+---
+
+## ✉️ Contact
+
+This project is maintained by [@dogancaglar](https://github.com/dogancaglar).
+
+---
+
+## 📜 License
+
+MIT License (c) Doğan Çağlar
