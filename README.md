@@ -13,8 +13,11 @@ A modular, event-driven eCommerce backend prototype demonstrating high-throughpu
 - **Architecture:** Domain-Driven Design (DDD), Hexagonal Architecture, Event-Driven, Observability-first  
 
 🔎 **Explore:**  
-- [Project README](./README.md) — Overview, tech stack, roadmap  
-- [Architecture Document](./docs/architecture.md) — Deep dive into design principles and deployment  
+- [Project README](https://github.com/yourusername/ecommerce-platform-kotlin/blob/main/README.md) — Overview, tech stack, roadmap  
+- [Architecture Document](https://github.com/yourusername/ecommerce-platform-kotlin/blob/main/docs/architecture.md) - Deep dive into design principles and deployment
+
+- [Project README](https://github.com/yourusername/ecommerce-platform-kotlin/blob/main/README.md)
+- [Architecture Document](https://github.com/yourusername/ecommerce-platform-kotlin/blob/main/docs/architecture.md)
 
 ---
 
