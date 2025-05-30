@@ -6,7 +6,7 @@ Welcome to my GitHub! I'm passionate about building scalable, resilient backend 
 
 ## 🚀 Featured Project: ecommerce-platform-kotlin
 
-A modular, event-driven eCommerce backend prototype demonstrating high-throughput system design inspired by Amazon and bol.com.
+A modular, event-driven eCommerce backend prototype demonstrating high-throughput  distributed system design inspired by Amazon and bol.com,currently working on payment-service, and using this project to demonstrate my architectural skills within a distributed system beside the satisfying the functional requirements. 
 
 - **Focus:** Multi-seller payment-service module  
 - **Tech:** Kotlin, Spring Boot, Kafka, Redis, PostgreSQL, Keycloak, ELK Stack  
