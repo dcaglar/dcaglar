@@ -14,7 +14,9 @@ A modular, event-driven eCommerce backend prototype demonstrating high-throughpu
 
 🔎 **Explore:**  
 - [Project README](https://github.com/dcaglar/ecommerce-platform-kotlin/blob/main/README.md) — Main project overview and getting started guide 
-- [Architecture Document](https://github.com/dcaglar/ecommerce-platform-kotlin/blob/main/docs/architecture.md) - Deep dive into design principles and Detailed architecture and Kubernetes deployment plan 
+- [Architecture Document](https://github.com/dcaglar/ecommerce-platform-kotlin/blob/main/docs/architecture.md) - Deep dive into design principles and Detailed architecture and Kubernetes deployment plan
+- - [How to start](https://github.com/dcaglar/ecommerce-platform-kotlin/blob/main/docs/how-to-start.md) - Simple instructiongs to start app and the whole infra.
+
 
 ---
 
