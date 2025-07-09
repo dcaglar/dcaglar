@@ -1,4 +1,4 @@
-# Hi, I'm Doğan Çağlar 👋
+# Hi, I'm Dogan 👋
 
 Welcome to my GitHub! I'm passionate about building scalable, resilient backend systems with Kotlin and Spring Boot.
 
@@ -31,9 +31,8 @@ A modular, event-driven eCommerce backend prototype demonstrating high-throughpu
 
 ## 📫 Get in Touch
 
-- [LinkedIn](https://linkedin.com/in/dogancaglar)  
-- [Twitter](https://twitter.com/dogancaglar)  
-- Email: dogan.caglar@example.com  
+- [LinkedIn](https://linkedin.com/in/dogan-c-596267a/)
+- Email: dcaglar1987@gmail.com  
 
 ---
 
