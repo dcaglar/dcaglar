@@ -19,13 +19,11 @@ A modular, event-driven eCommerce backend prototype demonstrating high-throughpu
 
 
 ---
+## 🔧 What I’m working on currently 
 
-## 🔧 What I’m working on
+-[ Introducing a Double-Entry Ledger Accounting System](https://github.com/dcaglar/ecommerce-platform-kotlin/issues/105)
 
-- Enhancing retry and failure handling with Dead Letter Queues  
-- Building out observability with structured logging and ELK stack  
-- Implementing Kubernetes CI/CD pipelines and node affinity  
-- Developing wallet and shipment microservices for end-to-end flow  
+-[ double-ledger-write idempotent-real time balance derivation](https://github.com/dcaglar/ecommerce-platform-kotlin/issues/105) 
 
 ---
 
