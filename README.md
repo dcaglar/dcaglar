@@ -11,7 +11,7 @@ A **modular**, **event-driven**, and **resilient** eCommerce backend prototype b
 ## 🚀 Quick Start
 
 For local setup and deployment on Minikube:  
-👉 **[docs/how-to-start.md](./docs/how-to-start.md)**
+👉 **[docs/how-to-start.md](https://github.com/dcaglar/ecommerce-platform-kotlin/blob/main/docs/how-to-start.md)**
 
 ---
 
