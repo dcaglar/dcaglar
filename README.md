@@ -53,10 +53,10 @@ This project simulates a real-world multi-seller eCommerce platform where:
 
 ## 📚 Documentation
 
-- **[Architecture Guide](./docs/architecture.md)** - High-level system design and patterns
-- **[Architecture Details](./docs/architecture-internal-reader.md)** - Deep dive into implementation
-- **[How to Start](./docs/how-to-start.md)** - Local setup and Minikube deployment
-- **[Folder Structure](./docs/folder-structure.md)** - Module organization and naming conventions
+- **[Architecture Guide](https://github.com/dcaglar/ecommerce-platform-kotlin/blob/main/docs/architecture.md)** - High-level system design and patterns
+- **[Architecture Details](https://github.com/dcaglar/ecommerce-platform-kotlin/blob/main/docs/architecture-internal-reader.md)** - Deep dive into implementation
+- **[How to Start](https://github.com/dcaglar/ecommerce-platform-kotlin/blob/main/docs/how-to-start.md)** - Local setup and Minikube deployment
+- **[Folder Structure](https://github.com/dcaglar/ecommerce-platform-kotlin/blob/main/docs/folder-structure.md)** - Module organization and naming conventions
 
 ---
 
