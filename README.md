@@ -100,10 +100,10 @@ For local setup and deployment on Minikube:
 
 ## 📚 Documentation
 
-- **[Architecture Guide](./docs/architecture.md)** – System design overview  
-- **[Architecture Details](./docs/architecture-internal-reader.md)** – Deep implementation guide  
-- **[How to Start](./docs/how-to-start.md)** – Local setup and Minikube deployment  
-- **[Folder Structure](./docs/folder-structure.md)** – Module organization and naming conventions
+- **[Architecture Guide](https://github.com/dcaglar/ecommerce-platform-kotlin/blob/main/docs/architecture.md)** – System design overview  
+- **[Architecture Details](https://github.com/dcaglar/ecommerce-platform-kotlin/blob/main/docs/architecture-internal-reader.md)** – Deep implementation guide  
+- **[How to Start](https://github.com/dcaglar/ecommerce-platform-kotlin/blob/main/docs/how-to-start.md)** – Local setup and Minikube deployment  
+- **[Folder Structure](https://github.com/dcaglar/ecommerce-platform-kotlin/blob/main/docs/folder-structure.md)** – Module organization and naming conventions
 
 ---
 
