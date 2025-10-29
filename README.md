@@ -1,9 +1,9 @@
 # 🛒 ecommerce-platform-kotlin
 
-> 💳 **Event-Driven Payments Platform Prototype**
+> 💳 **Event-Driven Ecommerce Platform -> Payments Domain/Service Prototype**
 >
-> A high-throughput, resilient, Kotlin + Spring Boot system inspired by PSPs like Adyen and Stripe.
-> Featuring outbox pattern, double-entry ledger, retries, observability, and Domain-Driven modular design.
+> A high-throughput, resilient, Kotlin + Spring Boot system inspired by payment services for ecommerce systems with sellers.
+> Featuring outbox pattern, double-entry ledger, retries, observability, and Domain-Driven modular design 
 
 ---
 
