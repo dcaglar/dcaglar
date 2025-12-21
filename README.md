@@ -17,7 +17,7 @@ From an engineering standpoint, the project demonstrates how to structure a mode
 
 This repository is intended for **backend engineers, architects, and SREs** who want to understand how MoR platforms implement correct financial flows, balance eventual consistency with strict accounting rules, and design event-driven systems that scale under real-world load.
 
-Please check [here](docs/architecture/architecture.md) for detailed architecture details.
+Please check [here](docs/architecture.md) for detailed architecture details.
 
 #### High Level Overview
 
