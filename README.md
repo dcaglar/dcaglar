@@ -1,3 +1,4 @@
+Authorization Flow(Sync. Idempotent,low latency)
 ```mermaid
 sequenceDiagram
 autonumber
