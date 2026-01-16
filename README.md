@@ -1,76 +1,106 @@
 Authorization Flow(Sync. Idempotent,low latency)
 ```mermaid
 sequenceDiagram
-autonumber
-actor Shopper
-participant UI as Checkout UI
-participant API as payment-service (REST)
-participant IDEM as IdempotencyService (create only)
-participant DB as PostgreSQL
-participant PSP as PSP/Stripe Gateway
-participant JOB as AuthStatusPoller (background)
+    autonumber
 
-    Note over Shopper,UI: Checkout started (no card stored in your system)
+    actor Shopper
 
-    Shopper->>UI: Proceed to checkout
-    UI->>API: POST /payments (Idempotency-Key)
-    API->>IDEM: run(key, request)
-    IDEM->>DB: INSERT idempotency_keys(PENDING) if absent
-    alt first time (CREATED)
-        IDEM->>API: execute block()
-        API->>DB: INSERT payment_intents(status=CREATED)
-        API->>DB: UPDATE idempotency_keys(COMPLETED + response)
-        API-->>UI: 201 Created + paymentIntentId
-    else retry same key (REPLAYED)
-        IDEM->>DB: SELECT response by key
-        API-->>UI: 200 OK (same response)
-    else another request in-flight (IN_PROGRESS)
-        IDEM->>DB: SELECT key (still PENDING)
-        API-->>UI: 202 Accepted (Retry-After) + Location /idempotency/{key}
-    end
+    participant Browser as Shopper's Browser<br/>(React App @ :3000)
+    participant Proxy as Backend Proxy<br/>(Node.js @ :3001)
+    participant Keycloak
+    participant PaymentSvc as payment-service<br/>(REST API)
+    participant IdemSvc as IdempotencyService
+    participant Stripe
 
-    Note over Shopper,UI: User clicks "Pay" (no 3DS)
+    %% Step 1: Create Payment Intent
+    Note over Shopper, Stripe: Phase 1: Create Payment Intent & Prepare Checkout Form
 
-    Shopper->>UI: Click Pay
-    UI->>API: POST /payments/{paymentIntentId}/authorize (card token)
-    API->>DB: SELECT payment_intent by id
+    Shopper->>Browser: Fills cart details, clicks "Proceed to Checkout"
+    Browser->>Proxy: POST /api/checkout/process-payment<br/>(with cart data & Idempotency-Key)
+    
+    Proxy->>Keycloak: Request service token (client_credentials)
+    Keycloak-->>Proxy: Return JWT Access Token
 
-    alt status already AUTHORIZED
-        API-->>UI: 200 OK (AUTHORIZED)
-    else status already DECLINED
-        API-->>UI: 200 OK (DECLINED)
-    else status already PENDING_AUTH
-        API-->>UI: 202 Accepted (still resolving)
-    else status is CREATED (first authorize attempt)
-        API->>DB: UPDATE payment_intents SET status=PENDING_AUTH WHERE status=CREATED
-        alt update succeeded (won the race)
-            API->>PSP: authorize (idempotencyKey = paymentIntentId)
-            alt PSP returns AUTHORIZED
-                API->>DB: TX: update intent=AUTHORIZED + create Payment + PaymentOrders + Outbox
-                API-->>UI: 200 OK (AUTHORIZED)
-            else PSP returns DECLINED
-                API->>DB: UPDATE payment_intents SET status=DECLINED
-                API-->>UI: 200 OK (DECLINED)
-            else PSP TIMEOUT / unknown
-                Note over API: keep status=PENDING_AUTH
-                API-->>UI: 202 Accepted + Retry-After + Location /payments/{id}
-                JOB->>DB: find intents PENDING_AUTH older than X
-                loop up to N times
-                    JOB->>PSP: fetch status by paymentIntentId / PSP id
-                    alt PSP says AUTHORIZED
-                        JOB->>DB: TX: update intent=AUTHORIZED + create Payment + PaymentOrders + Outbox
-                    else PSP says DECLINED
-                        JOB->>DB: update intent=DECLINED
-                    else still unknown
-                        JOB->>JOB: wait/backoff
-                    end
-                end
-            end
-        else update failed (someone else started)
-            API->>DB: SELECT latest intent
-            API-->>UI: 202 Accepted or 200 depending on latest status
+    Proxy->>PaymentSvc: POST /api/v1/payments<br/>(with JWT & Idempotency-Key)
+    
+    %% --- IDEMPOTENCY FLOW ---
+    PaymentSvc->>IdemSvc: checkKey(idempotencyKey)
+    alt First Request (Key is new)
+        IdemSvc->>PaymentSvc: Proceed
+        PaymentSvc->>PaymentSvc: Create PaymentIntent (status=CREATED_PENDING)
+        note right of PaymentSvc: DB: INSERT payment_intents
+        
+        par Async Stripe Call
+            PaymentSvc->>Stripe: Create PaymentIntent (API Call)
+        and Wait for Result
+            PaymentSvc->>PaymentSvc: Wait up to 3 seconds
         end
+
+        alt Stripe Responds < 3s
+            Stripe-->>PaymentSvc: Return { id, clientSecret }
+            PaymentSvc->>PaymentSvc: Update PaymentIntent (status=CREATED)
+            PaymentSvc->>IdemSvc: storeResponse(key, response)
+            PaymentSvc-->>Proxy: 201 Created<br/>{ paymentIntentId, clientSecret }
+        else Timeout (> 3s)
+            PaymentSvc-->>Proxy: 202 Accepted (Retry-After: 2s)<br/>{ paymentIntentId, clientSecret: null }
+            
+            Note over Proxy, PaymentSvc: Client enters polling loop
+            
+            loop Polling
+                Proxy->>PaymentSvc: GET /payments/{id}
+                PaymentSvc-->>Proxy: 200 OK { ... }
+            end
+
+            Note right of PaymentSvc: Background Thread
+            Stripe-->>PaymentSvc: Return { id, clientSecret } (Delayed)
+            PaymentSvc->>PaymentSvc: Update PaymentIntent (status=CREATED)
+        end
+
+    else Retry (Key already processed)
+        IdemSvc->>PaymentSvc: Return stored response
+        note right of IdemSvc: DB: SELECT response FROM idempotency_keys
+        PaymentSvc-->>Proxy: 200 OK (Replayed)<br/>{ paymentIntentId, clientSecret }
     end
+    %% --- END IDEMPOTENCY FLOW ---
+
+    Proxy-->>Browser: Return { clientSecret }
+
+    %% Step 2: Collect Card Details via Stripe Element
+    Note over Shopper, Stripe: Phase 2: Securely Collect Card Details
+
+    Browser->>Stripe: Stripe.js initializes Payment Element using clientSecret
+    Stripe-->>Browser: Renders secure card input form (iframe)
+    
+    Shopper->>Browser: Enters card details into Stripe's form
+    Note right of Shopper: Card data goes directly to Stripe,<br/>never touching any of our servers.
+
+    %% Step 3: Confirm Payment with Stripe and Authorize Internally
+    Note over Shopper, Stripe: Phase 3: Confirm Payment & Finalize State
+
+    Shopper->>Browser: Clicks "Pay Now"
+    Browser->>Stripe: elements.submit() (Tokenize & Associate)
+    Note right of Browser: Stripe JS sends card data,<br/>creates PaymentMethod,<br/>links it to PaymentIntent
+    Stripe-->>Browser: Validation OK
+    Browser->>Proxy: POST /api/checkout/authorize-payment/{paymentId}
+    
+    Proxy->>Keycloak: Request service token (can be cached)
+    Keycloak-->>Proxy: Return JWT Access Token
+
+    Proxy->>PaymentSvc: POST /api/v1/payments/{paymentId}/authorize
+    
+    PaymentSvc->>Stripe: paymentIntents.confirm(id)
+    Stripe-->>PaymentSvc: SUCCEEDED
+
+    rect rgb(230, 240, 255)
+        note over PaymentSvc: @Transactional
+        PaymentSvc->>PaymentSvc: Update PaymentIntent status to AUTHORIZED
+        PaymentSvc->>PaymentSvc: Create Payment & PaymentOrder entities
+        PaymentSvc->>PaymentSvc: Save PaymentAuthorizedEvent to Outbox table
+    end
+
+    PaymentSvc-->>Proxy: 200 OK { status: 'AUTHORIZED' }
+    Proxy-->>Browser: Return final success status
+    Browser->>Shopper: Display "Payment Successful" message
 ```
 
 ```mermaid
