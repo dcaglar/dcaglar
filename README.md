@@ -1,3 +1,4 @@
+High This is Dogan, an expert on building fault tolerant architecture on Fintech, here I am sharing my latest infra/software architecture
 High Level Context Diagram of Highly Available PaymentPlatform
 
 
